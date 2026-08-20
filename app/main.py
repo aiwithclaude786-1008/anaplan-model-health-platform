@@ -8,6 +8,14 @@
 # findings, size, or scores independently.
 # ============================================================
 import re
+import sys
+from pathlib import Path
+
+# `streamlit run app/main.py` puts this file's own directory (app/) on
+# sys.path, not its parent -- so `import app.branding` etc. would fail
+# with "No module named 'app'" unless the project root (one level up)
+# is added explicitly here, before any `app.*` import below.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 
