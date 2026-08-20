@@ -60,6 +60,7 @@ def build_size_reduction_opportunities(findings: List[Finding], total_cells: flo
             validation_required=sample.validation_required,
             score=round(impact_score, 3),
             severity=sample.severity,
+            cell_impact=cell_impact,
         ))
     opportunities.sort(key=lambda o: o.score, reverse=True)
     for i, o in enumerate(opportunities, start=1):
@@ -101,6 +102,7 @@ def build_top_opportunities(findings: List[Finding], total_cells: float, limit: 
             validation_required=sample.validation_required,
             score=round(score, 3),
             severity=sample.severity,
+            cell_impact=cell_impact if cell_impact else None,
         ))
 
     opportunities.sort(key=lambda o: o.score, reverse=True)

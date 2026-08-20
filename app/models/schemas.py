@@ -70,6 +70,7 @@ class OptimizationOpportunity:
     validation_required: bool
     score: float = 0.0
     severity: str = "medium"
+    cell_impact: Optional[float] = None  # raw cell count behind current_impact's display string, for simulator use
 
 
 @dataclass

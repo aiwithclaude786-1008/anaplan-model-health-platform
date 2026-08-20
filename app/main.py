@@ -25,6 +25,7 @@ from app.ui.formula_optimization_center import render_formula_optimization_cente
 from app.ui.hotspot_matrix import render_hotspot_matrix
 from app.ui.optimization_opportunities import render_optimization_opportunities
 from app.ui.action_plan import render_action_plan
+from app.ui.simulator import render_simulator
 from app.ui.data_quality import render_data_quality
 from app.ui.dependency_view import render_dependency_view
 from app.ui.rules_reference import render_rules_reference
@@ -32,6 +33,8 @@ from app.ui.rules_reference import render_rules_reference
 from app.reports.excel_report import build_excel_report
 from app.reports.csv_report import build_optimization_backlog_csv, build_findings_csv
 from app.reports.json_report import build_json_report
+from app.reports.html_report import build_html_report
+from app.reports.pdf_report import build_pdf_report
 
 st.set_page_config(page_title="Anaplan Model Health & Optimization Platform", layout="wide")
 st.markdown(inject_streamlit_theme_css(), unsafe_allow_html=True)
@@ -101,7 +104,8 @@ is_preview = uploaded is None and demo_mode
 PAGES = [
     "Executive Dashboard", "Consultant Dashboard", "Model Size", "Dimensionality",
     "Formula Optimization Center", "Calculation Hotspot Matrix", "Optimization Opportunities",
-    "Consultant Action Plan", "Dependency Analysis", "Data Quality", "Rules Reference", "Export Reports",
+    "Before / After Simulator", "Consultant Action Plan", "Dependency Analysis", "Data Quality",
+    "Rules Reference", "Export Reports",
 ]
 page = st.sidebar.radio("Navigate", PAGES)
 
@@ -120,6 +124,8 @@ elif page == "Calculation Hotspot Matrix":
     render_hotspot_matrix(result)
 elif page == "Optimization Opportunities":
     render_optimization_opportunities(result)
+elif page == "Before / After Simulator":
+    render_simulator(result)
 elif page == "Consultant Action Plan":
     render_action_plan(result)
 elif page == "Dependency Analysis":
@@ -131,13 +137,19 @@ elif page == "Rules Reference":
 elif page == "Export Reports":
     st.header("Export Reports")
     st.caption("Every export is generated from the same analysis result shown on the other pages.")
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3 = st.columns(3)
     c1.download_button("Excel workbook", data=build_excel_report(result, client_name_input, model_label_input),
                         file_name="anaplan_model_health_report.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    c2.download_button("Optimization backlog (CSV)", data=build_optimization_backlog_csv(result),
+    c2.download_button("Interactive HTML report", data=build_html_report(result, client_name_input, model_label_input),
+                        file_name="anaplan_model_health_report.html", mime="text/html")
+    c3.download_button("Executive PDF report", data=build_pdf_report(result, client_name_input, model_label_input),
+                        file_name="anaplan_model_health_report.pdf", mime="application/pdf")
+
+    c4, c5 = st.columns(2)
+    c4.download_button("Optimization backlog (CSV)", data=build_optimization_backlog_csv(result),
                         file_name="optimization_backlog.csv", mime="text/csv")
-    c3.download_button("Findings (CSV)", data=build_findings_csv(result),
+    c5.download_button("Findings (CSV)", data=build_findings_csv(result),
                         file_name="findings.csv", mime="text/csv")
-    c4.download_button("Findings (JSON)", data=build_json_report(result, client_name_input, model_label_input),
+    st.download_button("Findings (JSON, machine-readable)", data=build_json_report(result, client_name_input, model_label_input),
                         file_name="analysis.json", mime="application/json")
