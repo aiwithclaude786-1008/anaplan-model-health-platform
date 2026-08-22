@@ -9,6 +9,7 @@
 # ============================================================
 import re
 import sys
+import time
 from pathlib import Path
 
 # `streamlit run app/main.py` puts this file's own directory (app/) on
@@ -84,6 +85,7 @@ LARGE_FILE_ROW_LIMIT = 20000
 
 # ---- Load data ----
 df = None
+_t_load_start = time.perf_counter()
 if uploaded:
     df, err = load_file(uploaded, uploaded.name)
     if err is not None or df is None:
@@ -91,6 +93,7 @@ if uploaded:
         st.stop()
 elif demo_mode:
     df = build_demo_df(n_rows=80)
+_file_load_seconds = time.perf_counter() - _t_load_start
 
 if df is None:
     st.info("Upload an Anaplan export or turn on **Preview (Demo Data)** in the sidebar to get started.")
@@ -101,12 +104,32 @@ if len(df) > LARGE_FILE_ROW_LIMIT:
                "The platform will still run, but consider pre-filtering by module if it feels slow.")
 
 try:
+    _t_pipeline_start = time.perf_counter()
     result = run_pipeline(df, THRESHOLDS, agg_method=agg_method, top_n_modules=int(top_n_modules))
+    _pipeline_call_seconds = time.perf_counter() - _t_pipeline_start
 except SchemaError as e:
     st.error(str(e))
     st.stop()
 
 is_preview = uploaded is None and demo_mode
+
+# ---- Performance diagnostics -- always visible so a slow run can be
+# pinpointed (file read vs. cache-key hashing vs. a specific analysis
+# stage) instead of guessed at. See app/analysis/pipeline.py's
+# _Stopwatch for the per-stage breakdown.
+with st.sidebar.expander(
+    f"Performance ({_file_load_seconds + _pipeline_call_seconds:.1f}s)", expanded=False,
+):
+    stage_total = sum(result.timings.values())
+    st.caption(f"File read: **{_file_load_seconds:.2f}s** ({len(df):,} rows)")
+    st.caption(f"Pipeline call: **{_pipeline_call_seconds:.2f}s** (stage compute: {stage_total:.2f}s)")
+    if _pipeline_call_seconds > stage_total + 0.5:
+        st.caption(f"↳ {_pipeline_call_seconds - stage_total:.2f}s of that was cache bookkeeping "
+                    "(hashing the upload to check the cache), not analysis.")
+    for stage, seconds in result.timings.items():
+        st.caption(f"&nbsp;&nbsp;- {stage}: {seconds:.2f}s", unsafe_allow_html=True)
+    st.caption("Note: these numbers reflect the run that actually computed the result -- if this upload was "
+               "already cached (e.g. you just switched pages), the pipeline call above will be near-zero.")
 
 # ---- Navigation ----
 PAGES = [

@@ -8,8 +8,9 @@
 # ============================================================
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
-from typing import List
+from typing import Dict, List
 
 import pandas as pd
 import streamlit as st
@@ -54,32 +55,60 @@ class AnalysisResult:
     size_opportunities: List[OptimizationOpportunity]
     action_plan: List[ActionPlanItem]
     hotspots: List[HotspotPoint] = field(default_factory=list)
+    # Wall-clock seconds per stage, so a slow run can be diagnosed from
+    # the app itself (see ui/components.py's diagnostics panel) instead
+    # of guessing -- populated by _run() below.
+    timings: Dict[str, float] = field(default_factory=dict)
+
+
+class _Stopwatch:
+    def __init__(self):
+        self.timings: Dict[str, float] = {}
+        self._t0 = time.perf_counter()
+
+    def lap(self, label: str):
+        now = time.perf_counter()
+        self.timings[label] = round(now - self._t0, 3)
+        self._t0 = now
 
 
 def _run(df: pd.DataFrame, thresholds: RuleThresholds, agg_method: str, top_n_modules: int) -> AnalysisResult:
+    sw = _Stopwatch()
+
     nd = normalize(df)
+    sw.lap("normalize")
     data_quality = run_data_quality_checks(nd)
+    sw.lap("data_quality")
 
     feats = build_feature_table(nd)
+    sw.lap("build_feature_table")
     feats["impact_score"] = compute_formula_impact_score(feats)
+    sw.lap("formula_impact_score")
 
     active_rules = get_active_rules(set(nd.optional_cols.keys()), nd.cell_count_available, thresholds)
     findings = evaluate_rules(active_rules, feats)
+    sw.lap("evaluate_rules")
 
     size = analyze_size(nd, agg_method=agg_method, top_n=top_n_modules)
+    sw.lap("size_analysis")
     dimensionality = analyze_dimensionality(nd, feats)
+    sw.lap("dimensionality_analysis")
     health = compute_model_health(findings, size, dimensionality)
+    sw.lap("model_health")
 
     size_opportunities = build_size_reduction_opportunities(findings, size.total_cells)
     top_opportunities = build_top_opportunities(findings, size.total_cells)
     action_plan = build_action_plan(top_opportunities + size_opportunities)
+    sw.lap("optimization_engine")
     hotspots = build_hotspot_matrix(feats, feats["impact_score"]) if nd.cell_count_available else []
+    sw.lap("hotspot_matrix")
 
     return AnalysisResult(
         nd=nd, feats=feats, findings=findings, active_rule_ids=[r.rule_id for r in active_rules],
         size=size, dimensionality=dimensionality, health=health,
         data_quality=data_quality, top_opportunities=top_opportunities,
         size_opportunities=size_opportunities, action_plan=action_plan, hotspots=hotspots,
+        timings=sw.timings,
     )
 
 
