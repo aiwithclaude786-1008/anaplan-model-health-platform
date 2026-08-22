@@ -23,7 +23,6 @@ from app.analysis.formula_analysis import (
 )
 from app.analysis.size_analysis import analyze_size, SizeSummary
 from app.analysis.dimensionality_analysis import analyze_dimensionality, DimensionalityReport
-from app.analysis.dependency_analysis import analyze_dependencies, DependencyReport
 from app.analysis.model_health import compute_model_health
 from app.analysis.optimization_engine import (
     build_size_reduction_opportunities, build_top_opportunities, build_hotspot_matrix, HotspotPoint,
@@ -43,7 +42,12 @@ class AnalysisResult:
     active_rule_ids: List[str]
     size: SizeSummary
     dimensionality: DimensionalityReport
-    dependency: DependencyReport
+    # Dependency/daisy-chain analysis is deliberately NOT computed here.
+    # Its inferred-mode cross-reference regex scan is the most expensive
+    # step in the whole pipeline, and only one page (Dependency
+    # Analysis) needs it -- so it's computed on demand there instead
+    # (app/ui/dependency_view.py), keeping upload-to-first-render fast
+    # for every other page.
     health: HealthScoreBreakdown
     data_quality: DataQualityReport
     top_opportunities: List[OptimizationOpportunity]
@@ -64,7 +68,6 @@ def _run(df: pd.DataFrame, thresholds: RuleThresholds, agg_method: str, top_n_mo
 
     size = analyze_size(nd, agg_method=agg_method, top_n=top_n_modules)
     dimensionality = analyze_dimensionality(nd, feats)
-    dependency = analyze_dependencies(nd, feats)
     health = compute_model_health(findings, size, dimensionality)
 
     size_opportunities = build_size_reduction_opportunities(findings, size.total_cells)
@@ -74,7 +77,7 @@ def _run(df: pd.DataFrame, thresholds: RuleThresholds, agg_method: str, top_n_mo
 
     return AnalysisResult(
         nd=nd, feats=feats, findings=findings, active_rule_ids=[r.rule_id for r in active_rules],
-        size=size, dimensionality=dimensionality, dependency=dependency, health=health,
+        size=size, dimensionality=dimensionality, health=health,
         data_quality=data_quality, top_opportunities=top_opportunities,
         size_opportunities=size_opportunities, action_plan=action_plan, hotspots=hotspots,
     )

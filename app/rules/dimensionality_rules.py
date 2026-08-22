@@ -19,7 +19,7 @@ def build_dimensionality_rules() -> List[Rule]:
             rule_id="RULE-DIM-001", name="Subsidiary view", category="Dimensionality",
             description="Avoid subsidiary views -- a line item should not be dimensioned differently from its "
                         "own module (an 'Applies To' override) except in a genuine edge case.",
-            detect=lambda r: bool(r.get("is_subsidiary_view", False)),
+            detect=lambda f: f["is_subsidiary_view"],
             severity="medium",
             recommendation="Move the line item into a module whose native dimensionality already matches it.",
             confidence=CONFIDENCE_MEASURED, affects_size=True,
@@ -31,7 +31,7 @@ def build_dimensionality_rules() -> List[Rule]:
             rule_id="RULE-DIM-002", name="Full Model Calendar", category="Dimensionality",
             description="Apply Time Ranges to limit line items to the periods they actually need, rather than "
                         "leaving them on the full model calendar.",
-            detect=lambda r: bool(r.get("is_full_calendar", False)),
+            detect=lambda f: f["is_full_calendar"],
             severity="high",
             recommendation="Create a scoped Time Range (e.g. Actuals history + current/next FY) and reassign it.",
             confidence=CONFIDENCE_MEASURED, affects_size=True,

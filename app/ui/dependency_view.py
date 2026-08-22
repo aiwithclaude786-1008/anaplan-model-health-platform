@@ -5,11 +5,18 @@ import pandas as pd
 import streamlit as st
 
 from app.analysis.pipeline import AnalysisResult
+from app.analysis.dependency_analysis import analyze_dependencies
 
 
 def render_dependency_view(result: AnalysisResult):
-    dep = result.dependency
     st.header("Dependency / Daisy-Chain Analysis")
+    # Computed here, on demand, rather than eagerly in the main pipeline --
+    # its inferred-mode cross-reference regex scan is the single most
+    # expensive step in the whole platform, and this is the only page
+    # that needs it. Keeping it out of analysis/pipeline.py is what lets
+    # every other page (and the initial upload) stay fast.
+    with st.spinner("Analyzing dependencies..."):
+        dep = analyze_dependencies(result.nd, result.feats)
 
     if not dep.available:
         st.info(dep.note or "Not available in current dataset.")

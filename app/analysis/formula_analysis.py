@@ -242,20 +242,25 @@ def build_feature_table(nd: NormalizedData) -> pd.DataFrame:
 
 
 def evaluate_rules(rules, feats: pd.DataFrame):
-    """Runs every Rule.detect() against every row. Returns a list of
-    Finding (app.models.schemas.Finding), one per (rule, row) hit."""
+    """Runs every Rule.detect() against the whole feature table at once
+    (each detect() is vectorized -- see rules/base.py) and returns a
+    list of Finding, one per (rule, row) hit. Looping over rules
+    (typically ~17) with a vectorized pandas mask per rule, instead of
+    every row x every rule in a Python-level loop, is what keeps a
+    large export's rule pass fast."""
     findings: List[Finding] = []
-    for row in feats.itertuples():
-        row_dict = row._asdict()
-        cell_impact = row_dict.get("cell_count")
-        cell_impact = None if (cell_impact is None or (isinstance(cell_impact, float) and np.isnan(cell_impact))) else float(cell_impact)
-        for rule in rules:
-            try:
-                hit = rule.detect(row_dict)
-            except Exception:
-                hit = False
-            if not hit:
-                continue
+    for rule in rules:
+        try:
+            mask = rule.detect(feats)
+        except Exception:
+            continue
+        if mask is None or not mask.any():
+            continue
+        matched = feats[mask]
+        for row in matched.itertuples():
+            row_dict = row._asdict()
+            cell_impact = row_dict.get("cell_count")
+            cell_impact = None if (cell_impact is None or (isinstance(cell_impact, float) and np.isnan(cell_impact))) else float(cell_impact)
             findings.append(Finding(
                 rule_id=rule.rule_id,
                 category=rule.category,

@@ -58,16 +58,30 @@ def _parse_referenced_by(value: str) -> Set[str]:
     return modules
 
 
-def _longest_chain(adjacency: Dict[str, Set[str]], max_depth: int = 25) -> List[str]:
+def _longest_chain(adjacency: Dict[str, Set[str]], max_depth: int = 25, step_budget: int = 50_000) -> List[str]:
+    """Longest simple path is NP-hard in general, and a naive DFS over
+    every simple path explodes combinatorially on a densely-connected
+    graph (branching_factor ** depth) -- a model where modules
+    cross-reference each other heavily can hang for minutes on a
+    graph of just a few dozen modules. `step_budget` caps the total
+    number of node visits across the whole search, so this always
+    returns a reasonable (if not perfectly optimal) answer in bounded
+    time instead of an exact one in unbounded time."""
     best: List[str] = []
+    steps = 0
 
     def dfs(node: str, path: List[str], visited: Set[str]):
-        nonlocal best
+        nonlocal best, steps
+        if steps >= step_budget:
+            return
+        steps += 1
         if len(path) > len(best):
             best = list(path)
         if len(path) >= max_depth:
             return
         for nxt in adjacency.get(node, ()):
+            if steps >= step_budget:
+                return
             if nxt in visited:
                 continue
             visited.add(nxt)
@@ -77,6 +91,8 @@ def _longest_chain(adjacency: Dict[str, Set[str]], max_depth: int = 25) -> List[
             visited.discard(nxt)
 
     for start in adjacency:
+        if steps >= step_budget:
+            break
         dfs(start, [start], {start})
     return best
 

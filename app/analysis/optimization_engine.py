@@ -10,6 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import List
 
+import numpy as np
 import pandas as pd
 
 from app.models.schemas import Finding, OptimizationOpportunity
@@ -131,21 +132,17 @@ def build_hotspot_matrix(feats: pd.DataFrame, impact_score: pd.Series) -> List[H
     complexity_median = complexity.median() if len(complexity) else 0.0
     cell_median = cell[cell > 0].median() if (cell > 0).any() else 0.0
 
-    points = []
-    for i in feats.index:
-        c = float(complexity.at[i])
-        n = float(cell.at[i])
-        if c >= complexity_median and n >= cell_median and n > 0:
-            quadrant = "Critical Optimization"
-        elif c >= complexity_median:
-            quadrant = "Watch"
-        elif n >= cell_median and n > 0:
-            quadrant = "Size Risk"
-        else:
-            quadrant = "Low Priority"
-        points.append(HotspotPoint(
-            module=str(feats.at[i, "module"]), line_item=str(feats.at[i, "line_item"]),
-            complexity=round(c, 1), cell_count=n, quadrant=quadrant,
-            impact_score=float(impact_score.at[i]) if i in impact_score.index else 0.0,
-        ))
-    return points
+    high_complexity = complexity >= complexity_median
+    high_cell = (cell >= cell_median) & (cell > 0)
+    quadrant = np.select(
+        [high_complexity & high_cell, high_complexity, high_cell],
+        ["Critical Optimization", "Watch", "Size Risk"],
+        default="Low Priority",
+    )
+
+    out = pd.DataFrame({
+        "module": feats["module"].astype(str), "line_item": feats["line_item"].astype(str),
+        "complexity": complexity.round(1), "cell_count": cell, "quadrant": quadrant,
+        "impact_score": impact_score.reindex(feats.index).fillna(0.0),
+    })
+    return [HotspotPoint(**row) for row in out.to_dict("records")]

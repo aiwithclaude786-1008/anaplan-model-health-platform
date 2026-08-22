@@ -3,10 +3,13 @@
 # Rule engine core. Every detection in the platform -- formula,
 # size, dimensionality, performance, architecture -- is expressed
 # as a Rule with a stable ID and full metadata, per master spec
-# section 17. detect() gets a pandas Series (one row of the
-# feature table built by analysis/formula_analysis.py's
-# build_features(), joined with size/dimensionality columns) and
-# returns True/False. Rules never mutate state and never talk to
+# section 17. detect() is VECTORIZED: it takes the whole feature
+# table built by analysis/formula_analysis.build_feature_table()
+# (one row per line item) and returns a boolean pandas Series
+# aligned to it -- not a per-row callback -- so evaluating all
+# rules against a large export is a handful of pandas column
+# operations instead of a Python-level loop over every
+# (row, rule) pair. Rules never mutate state and never talk to
 # Streamlit -- they're pure and unit-testable.
 # ============================================================
 from __future__ import annotations
@@ -28,7 +31,7 @@ class Rule:
     name: str
     category: str  # Formula | Size | Dimensionality | Performance | Architecture | Governance
     description: str  # the best-practice rule statement (PLANUAL-style)
-    detect: Callable[[pd.Series], bool]
+    detect: Callable[[pd.DataFrame], pd.Series]  # vectorized: feats -> boolean mask aligned to feats.index
     severity: str  # critical | high | medium | low
     recommendation: str
     confidence: str = CONFIDENCE_ESTIMATED
